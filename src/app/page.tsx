@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, Sun, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
 import { type TerrainStatus } from '@/lib/map-terrain';
 import { loadCameraCatalog, mergeCameraCatalog } from '@/lib/camera-catalog';
 import IntelFeed from '@/components/IntelFeed';
@@ -27,6 +27,7 @@ import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
+const MoldovaPanel = dynamic(() => import('@/components/MoldovaPanel'), { ssr: false });
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
@@ -166,6 +167,7 @@ export default function Dashboard() {
   const [activeCamera, setActiveCamera] = useState<any>(null);
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
   const [showLayers, setShowLayers] = useState(true);
+  const [showMoldova, setShowMoldova] = useState(false);
   const [showMarkets, setShowMarkets] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showSpaceCam, setShowSpaceCam] = useState(false);
@@ -277,15 +279,31 @@ export default function Dashboard() {
   const [terrainFocus, setTerrainFocus] = useState(0);
   const [terrainStatus, setTerrainStatus] = useState<TerrainStatus>('idle');
   const [terrainRetry, setTerrainRetry] = useState(0);
-  const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
+  const [mapStyle, setMapStyle] = useState<'dark'|'light'|'voyager'|'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
   const [drawnPolygons, setDrawnPolygons] = useState<DrawnShape[]>([]);
   const [demoMode, setDemoMode] = useState(false);
-  const [osirisTheme, setOsirisTheme] = useState<'core'|'ghost'>('core');
+  const [osirisTheme, setOsirisTheme] = useState<'core'|'ghost'|'light'>('core');
+
+  // Load saved theme from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('osiris-theme') as 'core' | 'ghost' | 'light' | null;
+      if (savedTheme && ['core', 'ghost', 'light'].includes(savedTheme)) {
+        setOsirisTheme(savedTheme);
+        if (savedTheme === 'light') {
+          setMapStyle('light');
+        }
+      }
+    } catch { /* ignore localStorage error */ }
+  }, []);
 
   useEffect(() => {
     document.body.className = osirisTheme === 'core' ? '' : `theme-${osirisTheme}`;
+    try {
+      localStorage.setItem('osiris-theme', osirisTheme);
+    } catch { /* ignore */ }
   }, [osirisTheme]);
 
   /* Style Studio overrides are inline on <body>, so they survive the theme
@@ -342,6 +360,14 @@ export default function Dashboard() {
     gdelt_events: false,
     cf_outages: false,
     cf_attacks: false,
+    moldova_news: true,
+    moldova_events: true,
+    moldova_cams: true,
+    moldova_borders: true,
+    moldova_airports: true,
+    moldova_weather: true,
+    moldova_quakes: true,
+    moldova_infra: true,
   });
   // Server-side capability flags — gate layers that need credentials.
   const selectFlatMap = () => {
@@ -625,6 +651,22 @@ export default function Dashboard() {
        is on, and this is the one thing in the panel a reader may have to act on. */
     fetchEndpoint('/api/weather', d => ({ weather_events: d.events }));
     layerFetchedRef.current.add('weather');
+
+    // Moldova Data Intelligence Layer (Live feeds & geospatial models)
+    const moldovaTransform = (d: any) => ({
+      moldova_overview: d,
+      moldova_news: d?.news ?? [],
+      moldova_events: d?.events ?? [],
+      moldova_cameras: d?.cameras ?? [],
+      moldova_borders: d?.borderCrossings ?? [],
+      moldova_airports: d?.airports ?? [],
+      moldova_weather: d?.weatherStations ?? [],
+      moldova_earthquakes: d?.earthquakes ?? [],
+      moldova_gis: d?.gis ?? [],
+    });
+    fetchEndpoint('/api/moldova/overview', moldovaTransform);
+    layerFetchedRef.current.add('moldova');
+
     /* A cold start can time out every upstream quote and return an all-empty
        feed. Waiting a full poll interval to find out leaves the panel blank for
        15 minutes, so retry a few times up-front until instruments actually land. */
@@ -652,6 +694,7 @@ export default function Dashboard() {
       setInterval(() => fetchEndpoint('/api/news', newsTransform, undefined, { skipWhenHidden: true }), 300000),
       // 5 min: a warning that has just been issued is the point of the panel.
       setInterval(() => fetchEndpoint('/api/weather', d => ({ weather_events: d.events }), undefined, { skipWhenHidden: true }), 300000),
+      setInterval(() => fetchEndpoint('/api/moldova/overview', moldovaTransform, undefined, { skipWhenHidden: true }), 120000), // 2 min
       setInterval(() => fetchEndpoint('/api/markets', d => ({ markets: d }), undefined, { skipWhenHidden: true }), 900000), // 15 min (was 5)
     ];
     return () => {
@@ -1194,7 +1237,7 @@ export default function Dashboard() {
           terrainFocus={terrainFocus}
           terrainRetry={terrainRetry}
           onTerrainStatusChange={setTerrainStatus}
-          mapStyle={mapStyle === 'satellite' ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'dark'} 
+          mapStyle={mapStyle} 
           onEntityClick={handleEntityClick} 
           onMouseCoords={handleMouseCoords} 
           onRightClick={handleRightClick} 
@@ -1317,7 +1360,9 @@ export default function Dashboard() {
           <ViewSegment layoutId="view-projection" active={mapProjection === 'globe'} onClick={() => setMapProjection('globe')} title="3D Globe" icon={Globe} label="3D" />
           <ViewSegment layoutId="view-projection" active={mapProjection === 'mercator'} onClick={selectFlatMap} title="2D Map" icon={MapPinned} label="2D" />
           <div className="w-px h-5 mx-1 bg-[var(--border-secondary)]" />
-          <ViewSegment layoutId="view-style" active={mapStyle === 'dark'} onClick={() => setMapStyle('dark')} title="Night Mode" icon={Moon} label="MAP" />
+          <ViewSegment layoutId="view-style" active={mapStyle === 'light'} onClick={() => { setMapStyle('light'); setOsirisTheme('light'); }} title="Positron Light Map" icon={Sun} label="LIGHT" />
+          <ViewSegment layoutId="view-style" active={mapStyle === 'voyager'} onClick={() => setMapStyle('voyager')} title="Streets Color Map" icon={Globe} label="STREETS" />
+          <ViewSegment layoutId="view-style" active={mapStyle === 'dark'} onClick={() => { setMapStyle('dark'); if (osirisTheme === 'light') setOsirisTheme('core'); }} title="Dark Matter" icon={Moon} label="DARK" />
           <ViewSegment layoutId="view-style" active={mapStyle === 'satellite'} onClick={() => setMapStyle('satellite')} title="Satellite View" icon={Satellite} label="SAT" />
         </div>
 
@@ -1373,6 +1418,30 @@ export default function Dashboard() {
         {spaceWeather && <span className="hidden lg:inline" title={spaceWeather.kp_index == null ? 'Geomagnetic Storm Index — no reading from NOAA' : `Geomagnetic Storm Index — Kp${spaceWeather.kp_index}`}>SOLAR: <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>{spaceWeather.kp_index == null ? 'N/A' : `Kp${spaceWeather.kp_index}`}</span></span>}
 
         <span className="text-[11px] font-bold tracking-[0.2em] text-[var(--text-muted)] opacity-50">V.4.1</span>
+
+        {/* Quick Theme Toggle (Day / Night Mode) */}
+        <button
+          onClick={() => {
+            const nextTheme = osirisTheme === 'light' ? 'core' : 'light';
+            setOsirisTheme(nextTheme);
+            setMapStyle(nextTheme === 'light' ? 'light' : 'dark');
+          }}
+          className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-panel)] hover:border-[var(--gold-primary)] text-[var(--text-primary)] transition-all cursor-pointer shadow-sm"
+          title={osirisTheme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light / Day Mode'}
+          aria-label="Toggle Dark/Light Mode"
+        >
+          {osirisTheme === 'light' ? (
+            <>
+              <Moon className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
+              <span className="text-[9px] font-mono font-bold tracking-wider">DARK</span>
+            </>
+          ) : (
+            <>
+              <Sun className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
+              <span className="text-[9px] font-mono font-bold tracking-wider">LIGHT</span>
+            </>
+          )}
+        </button>
         
         <TokenPanel />
 
@@ -1385,6 +1454,18 @@ export default function Dashboard() {
       {isMobile && !showDirections && !navSession && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const nextTheme = osirisTheme === 'light' ? 'core' : 'light';
+                setOsirisTheme(nextTheme);
+                setMapStyle(nextTheme === 'light' ? 'light' : 'dark');
+              }}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] text-[var(--gold-primary)] cursor-pointer"
+              title={osirisTheme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              aria-label="Toggle Theme"
+            >
+              {osirisTheme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
             <TokenPanel />
             <SupportMenu compact />
           </div>
@@ -1400,8 +1481,38 @@ export default function Dashboard() {
 
       {/* ── RIGHT TOOL STRIP (desktop only — mobile uses bottom nav) ── */}
       {!isMobile && <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[250] pointer-events-auto bg-black/40 backdrop-blur-sm p-1 rounded-full border border-white/5">
+        {/* ── MOLDOVA INTEL DOSSIER ── */}
         <div className="relative group">
-          <button onClick={() => { setShowIntel(!showIntel); setShowMarkets(false); setShowAlerts(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showIntel ? 'bg-[var(--cyan-primary)]/20' : 'hover:bg-white/10'}`} title="OSINT Recon — IP lookup, network sweep, geolocation" aria-label="OSINT Recon" aria-expanded={showIntel}>
+          <button onClick={() => { setShowMoldova(!showMoldova); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowArcGIS(false); setShowRemote(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showMoldova ? 'bg-[var(--gold-primary)]/25 border border-[var(--gold-primary)]/40 shadow-[0_0_10px_var(--gold-glow)]' : 'hover:bg-white/10'}`} title="Moldova Intel Dossier — Moldpres, PTF borders, CCTV, seismic, weather" aria-label="Moldova Intel" aria-expanded={showMoldova}>
+            <span className="text-xs">🇲🇩</span>
+            {showMoldova && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-current text-[var(--gold-primary)]"
+              />
+            )}
+          </button>
+          <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none">MOLDOVA</span>
+          <AnimatePresence>
+            {showMoldova && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-[380px] sm:w-[420px]">
+                <MoldovaPanel
+                  onClose={() => setShowMoldova(false)}
+                  onLocate={(lat, lng, zoom) => {
+                    setFlyToLocation({ lat, lng, zoom: zoom ?? 11, ts: Date.now() });
+                  }}
+                  onOpenLiveFeed={(url, title) => {
+                    setLiveFeedUrl(url);
+                    setLiveFeedName(title);
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="relative group">
+          <button onClick={() => { setShowIntel(!showIntel); setShowMoldova(false); setShowMarkets(false); setShowAlerts(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showIntel ? 'bg-[var(--cyan-primary)]/20' : 'hover:bg-white/10'}`} title="OSINT Recon — IP lookup, network sweep, geolocation" aria-label="OSINT Recon" aria-expanded={showIntel}>
             <Radar className={`w-4 h-4 ${showIntel ? 'text-[var(--cyan-primary)]' : 'text-white/60'}`} />
             {showIntel && (
               <span

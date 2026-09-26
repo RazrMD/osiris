@@ -8,22 +8,25 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Only allow cartocdn.com domains to prevent open proxy abuse
     const targetUrl = new URL(url);
     const host = targetUrl.hostname.toLowerCase();
-    if (host !== 'cartocdn.com' && !host.endsWith('.cartocdn.com')) {
+    if (
+      host !== 'cartocdn.com' &&
+      !host.endsWith('.cartocdn.com') &&
+      host !== 'arcgisonline.com' &&
+      !host.endsWith('.arcgisonline.com') &&
+      host !== 'openstreetmap.org' &&
+      !host.endsWith('.openstreetmap.org')
+    ) {
       return NextResponse.json({ error: 'Forbidden domain' }, { status: 403 });
     }
 
-    const response = await fetch(targetUrl.toString(), { signal: AbortSignal.timeout(15000),
+    const response = await fetch(targetUrl.toString(), {
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Accept': '*/*',
-        'User-Agent': 'Osiris-Tile-Proxy/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
-      // Using Next.js fetch cache options to heavily cache tiles locally
-      next: {
-        revalidate: 31536000, // Cache for 1 year
-      }
     });
 
     if (!response.ok) {
@@ -31,8 +34,6 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.arrayBuffer();
-    
-    // Forward the content-type from the upstream response
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
     return new NextResponse(data, {
@@ -43,9 +44,8 @@ export async function GET(request: NextRequest) {
         'Access-Control-Allow-Origin': '*',
       },
     });
-
-  } catch (error) {
-    console.error('Tile proxy error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Tile proxy error:', error, 'cause:', error?.cause);
+    return NextResponse.json({ error: 'Internal server error', details: String(error), cause: String(error?.cause?.message || error?.cause || error?.message) }, { status: 500 });
   }
 }

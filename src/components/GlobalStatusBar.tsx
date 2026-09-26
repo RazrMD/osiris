@@ -143,7 +143,7 @@ export default function GlobalStatusBar() {
       transition={{ delay: 3, duration: 0.6 }}
       className="hidden md:block absolute bottom-0 left-0 right-0 z-[210] pointer-events-none"
     >
-      <div className="h-[28px] overflow-hidden bg-[#0a0a0f]/95 border-t border-white/[0.06] flex items-center text-[10px] font-mono tracking-wider backdrop-blur-xl relative">
+      <div className="h-[28px] overflow-hidden bg-[var(--bg-panel-solid)]/95 border-t border-[var(--border-primary)] flex items-center text-[10px] font-mono tracking-wider backdrop-blur-xl relative">
         {/* Animated scan line */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--cyan-primary)]/30 to-transparent" style={{ animation: 'hud-scanline 4s linear infinite' }} />
         

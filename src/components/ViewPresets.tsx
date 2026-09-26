@@ -8,6 +8,7 @@ interface ViewPresetsProps {
 }
 
 const PRESETS = [
+  { label: 'MOLDOVA', lat: 47.01, lng: 28.86, zoom: 7.5, icon: '🇲🇩', hot: true },
   { label: 'GLOBAL', lat: 20, lng: 0, zoom: 2.5, icon: '🌍' },
   { label: 'EUROPE', lat: 48, lng: 10, zoom: 4, icon: '🇪🇺' },
   { label: 'MIDDLE EAST', lat: 30, lng: 45, zoom: 4.5, icon: '🔥', hot: true },

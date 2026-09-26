@@ -149,6 +149,104 @@ body.theme-ghost {
   --font-mono: var(--font-hud);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   THEME: LIGHT / DAY MODE (SOLAR OSINT / CRISP HIGH CONTRAST)
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-light {
+  --gold-rgb: 180, 83, 9;
+  --cyan-rgb: 2, 132, 199;
+  
+  /* ── Light Mode Canvas & Panels ── */
+  --bg-void: #F8FAFC;
+  --bg-primary: #F1F5F9;
+  --bg-secondary: #E2E8F0;
+  --bg-tertiary: #CBD5E1;
+  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-panel-solid: #FFFFFF;
+
+  /* ── Warm Solar Gold Accent ── */
+  --gold-primary: #B45309;
+  --gold-light: #D97706;
+  --gold-dim: #78350F;
+  --gold-glow: rgba(180, 83, 9, 0.25);
+
+  /* ── Cyan / Precision Blue ── */
+  --cyan-primary: #0284C7;
+  --cyan-dim: #0369A1;
+  --cyan-glow: rgba(2, 132, 199, 0.2);
+
+  /* ── Alert Colors (Readable on White/Light) ── */
+  --alert-red: #DC2626;
+  --alert-orange: #EA580C;
+  --alert-green: #16A34A;
+  --alert-blue: #2563EB;
+
+  /* ── Accent Colors ── */
+  --accent-weather: #9333EA;
+  --accent-nuclear: #4D7C0F;
+
+  /* ── High Contrast Map Markers ── */
+  --map-cctv: #16A34A;
+  --map-flight-civil: #0284C7;
+  --map-flight-private: #D97706;
+  --map-flight-gov: #EA580C;
+  --map-flight-military: #DC2626;
+  --map-flight-unknown: #475569;
+
+  /* ── Clean Light Borders ── */
+  --border-primary: rgba(0, 0, 0, 0.12);
+  --border-secondary: rgba(0, 0, 0, 0.06);
+  --border-active: rgba(180, 83, 9, 0.5);
+  --border-cyan: rgba(2, 132, 199, 0.3);
+
+  /* ── Typography (Deep slate for crisp readability) ── */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-heading: #020617;
+  --text-gold: #B45309;
+  --text-cyan: #0284C7;
+
+  /* ── Scrollbars & Hover ── */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+  --hover-accent: rgba(0, 0, 0, 0.05);
+}
+
+body.theme-light .glass-panel {
+  background: var(--bg-panel);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+body.theme-light .glass-panel-sm {
+  background: var(--bg-panel);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+body.theme-light .vignette {
+  background: radial-gradient(ellipse at center, transparent 75%, rgba(241, 245, 249, 0.15) 92%, rgba(241, 245, 249, 0.35) 100%);
+  pointer-events: none;
+}
+
+body.theme-light .crt-scanlines {
+  opacity: 0.003;
+}
+
+body.theme-light .mobile-nav {
+  background: linear-gradient(180deg, transparent 0%, rgba(248, 250, 252, 0.98) 30%);
+}
+
+body.theme-light .maplibregl-popup-close-button {
+  color: var(--text-muted) !important;
+}
+
+body.theme-light .maplibregl-popup-close-button:hover {
+  color: var(--gold-primary) !important;
+}
+
 /* ── Base ── */
 * { box-sizing: border-box; }
 

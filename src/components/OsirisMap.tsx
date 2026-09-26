@@ -51,7 +51,7 @@ interface OsirisMapProps {
   sweepData?: any;
   scanTargets?: any[];
   demoMode?: boolean;
-  theme?: 'core' | 'ghost';
+  theme?: 'core' | 'ghost' | 'light';
   drawnPolygons?: Array<{ id: string; name: string; geojson: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>; color: string }>;
   arcgisLayers?: Array<{ id: string; title: string; geojson: any; color?: string; opacity?: number }>;
   /** Active draw mode, or null when not drawing. */
@@ -302,14 +302,20 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!containerRef.current || mapRef.current) return;
     
     // Select basemap style
-    const styleUrl = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+    const STYLE_URLS: Record<string, string> = {
+      dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      voyager: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+      satellite: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    };
+    const styleUrl = STYLE_URLS[mapStyle] || STYLE_URLS.light;
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
     const baseOptions = {
       container,
       style: styleUrl,
-      center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
+      center: [28.86, 47.01] as [number, number], zoom: 7.5, minZoom: 1.5, maxZoom: 18,
       /* The basemap is CARTO's, drawn from OpenStreetMap, and the places on it
          are searched and named through OpenStreetMap too. Both have to be
          credited on the map itself; this was switched off, which is half of
@@ -322,14 +328,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         customAttribution: 'Geocoding © OpenStreetMap contributors',
       } as const,
       maxPitch: 85,
-      transformRequest: (url: string) => {
-        // Route all CARTO CDN requests through the internal Next.js proxy API
-        if (url.includes('cartocdn.com')) {
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-          return { url: `${baseUrl}/api/proxy-tiles?url=${encodeURIComponent(url)}` };
-        }
-        return { url };
-      },
     };
 
     // MapLibre asks for a high-performance WebGL2 context and throws outright if it
@@ -362,6 +360,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     map.on('load', () => {
       mapRef.current = map;
+      if (typeof window !== 'undefined') (window as any)._map = map;
 
       /* Measure the container once the layout has settled. The constructor
          may have read it before it had a size, and a map that starts at the
@@ -397,7 +396,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'network-mesh', 'cyber-heads', 'gdelt-events', 'cf-outages', 'cf-attacks', 'alert-pins'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'network-mesh', 'cyber-heads', 'gdelt-events', 'cf-outages', 'cf-attacks', 'alert-pins', 'moldova-events', 'moldova-cams', 'moldova-borders', 'moldova-airports', 'moldova-weather', 'moldova-infra'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // ── FLIGHT ROUTE VISUALIZATION SOURCES & LAYERS ──
@@ -886,6 +885,83 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-offset': [0, 1.2], 'text-allow-overlap': false,
       }, paint: { 'text-color': ['match', ['get','type'], 'military','#D32F2F', 'tanker','#E65100', 'cargo','#26C6DA', '#B0BEC5'], 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
+      // ══ MOLDOVA INTEL LAYERS ══
+      // Moldova Events / Incidents
+      map.addLayer({ id: 'moldova-events-glow', type: 'circle', source: 'moldova-events', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,10, 5,18, 10,30],
+        'circle-color': ['match', ['get','severity'], 'CRITICAL','#FF1744', 'HIGH','#FF9100', 'MEDIUM','#FFD600', '#D4AF37'],
+        'circle-opacity': 0.15, 'circle-blur': 1,
+      }});
+      map.addLayer({ id: 'moldova-events-dots', type: 'circle', source: 'moldova-events', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,12],
+        'circle-color': ['match', ['get','severity'], 'CRITICAL','#FF1744', 'HIGH','#FF9100', 'MEDIUM','#FFD600', '#D4AF37'],
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.8,
+      }});
+      map.addLayer({ id: 'moldova-events-label', type: 'symbol', source: 'moldova-events', minzoom: 6, layout: {
+        'text-field': ['get','title'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-offset': [0, 1.6], 'text-max-width': 14, 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#D4AF37', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
+
+      // Moldova Traffic & ASD Cameras
+      map.addLayer({ id: 'moldova-cams-dots', type: 'circle', source: 'moldova-cams', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,3, 5,6, 10,9, 14,14],
+        'circle-color': '#00E5FF',
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 2, 'circle-stroke-color': '#000000',
+      }});
+      map.addLayer({ id: 'moldova-cams-label', type: 'symbol', source: 'moldova-cams', minzoom: 8, layout: {
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-offset': [0, 1.6], 'text-max-width': 14, 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#00E5FF', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
+
+      // Moldova Border Crossings (PTF)
+      map.addLayer({ id: 'moldova-borders-dots', type: 'circle', source: 'moldova-borders', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,11],
+        'circle-color': ['match', ['get','neighborCountry'], 'RO','#00E676', '#FFB300'],
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 2, 'circle-stroke-color': '#000',
+      }});
+      map.addLayer({ id: 'moldova-borders-label', type: 'symbol', source: 'moldova-borders', minzoom: 5, layout: {
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-offset': [0, 1.5], 'text-max-width': 12, 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#00E676', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
+
+      // Moldova Aviation & Airports
+      map.addLayer({ id: 'moldova-airports-dots', type: 'circle', source: 'moldova-airports', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,12],
+        'circle-color': '#40C4FF',
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 2, 'circle-stroke-color': '#000',
+      }});
+      map.addLayer({ id: 'moldova-airports-label', type: 'symbol', source: 'moldova-airports', minzoom: 4, layout: {
+        'text-field': ['concat', ['get','iata'], ' / ', ['get','icao']], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-offset': [0, 1.5], 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#40C4FF', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
+
+      // Moldova Weather Stations
+      map.addLayer({ id: 'moldova-weather-dots', type: 'circle', source: 'moldova-weather', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,3, 5,5, 10,8],
+        'circle-color': '#B388FF',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000',
+      }});
+      map.addLayer({ id: 'moldova-weather-label', type: 'symbol', source: 'moldova-weather', minzoom: 6, layout: {
+        'text-field': ['concat', ['to-string',['get','tempC']], '°C'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-offset': [0, 1.4], 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#B388FF', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
+
+      // Moldova Infrastructure Nodes
+      map.addLayer({ id: 'moldova-infra-dots', type: 'circle', source: 'moldova-infra', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,3, 5,6, 10,10],
+        'circle-color': '#FFD54F',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000',
+      }});
+      map.addLayer({ id: 'moldova-infra-label', type: 'symbol', source: 'moldova-infra', minzoom: 7, layout: {
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-offset': [0, 1.5], 'text-max-width': 14, 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#FFD54F', 'text-halo-color': '#000', 'text-halo-width': 1.5 }});
 
       setMapReady(true);
       // Dev-only handle. The map is otherwise unreachable from the console,
@@ -1434,14 +1510,99 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           ${row('FIRST SEEN', htmlEsc(p.first_seen || 'Not reported'))}
           ${row('LAST ONLINE', htmlEsc(p.last_online || 'Not reported'))}
         </div>
-        ${p.hostname ? `<div style="font-size:9px;color:#8A8880;margin-bottom:8px;font-family:monospace;word-break:break-all;">${htmlEsc(p.hostname)}</div>` : ''}
         <div style="font-size:8px;color:#5C5A54;line-height:1.5;margin-bottom:8px;">Blocklist entry, not an observed attack. Marker sits at the hosting country's centroid, not the host's location.</div>
         <div style="font-size:7px;color:#5C5A54;text-align:center;letter-spacing:0.1em;">SOURCE: <a href="${urlSafe(p.source_url || 'https://feodotracker.abuse.ch/browse/')}" target="_blank" style="color:${c};text-decoration:underline;">ABUSE.CH FEODO TRACKER ↗</a></div>
       </div>`);
     });
 
+    // ── Moldova Events Click ──
+    map.on('click', 'moldova-events-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const c = p.severity === 'CRITICAL' ? '#FF1744' : p.severity === 'HIGH' ? '#FF9100' : '#D4AF37';
+      popup(coords, `<div style="${pStyle}border:1px solid ${c}60;min-width:240px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="font-size:12px;">🇲🇩</span>
+          <span style="color:${c};font-size:11px;font-weight:700;letter-spacing:0.1em;">${htmlEsc(p.severity)} · ${htmlEsc(p.category || 'MOLDOVA ALERT')}</span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:6px;line-height:1.3;">${htmlEsc(p.title)}</div>
+        <div style="font-size:10px;color:#9B978E;margin-bottom:8px;line-height:1.4;">${htmlEsc(p.summary || '')}</div>
+        <div style="font-size:8px;color:#5C5A54;">Source: ${htmlEsc(p.sourceName || 'Moldova Intel')} · ${htmlEsc(p.publishedAt || '')}</div>
+        ${p.url ? `<a href="${urlSafe(p.url)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${c};border:1px solid ${c}40;background:${c}15;display:inline-block;margin-top:6px;width:100%;text-align:center;box-sizing:border-box;">OPEN REPORT ↗</a>` : ''}
+      </div>`);
+    });
+
+    // ── Moldova Cameras Click ──
+    map.on('click', 'moldova-cams-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid #00E5FF50;min-width:240px;">
+        <div style="color:#00E5FF;font-size:11px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+          <span>📹</span>
+          <span>${htmlEsc(p.name)}</span>
+        </div>
+        <div style="font-size:9px;color:#9B978E;margin-bottom:8px;">${htmlEsc(p.region || 'Moldova')} · Operator: ${htmlEsc(p.operator || 'ASD')}</div>
+        ${p.snapshotUrl ? `<img src="${urlSafe(p.snapshotUrl)}" style="width:100%;height:120px;object-fit:cover;border-radius:4px;margin-bottom:6px;border:1px solid rgba(255,255,255,0.1);" />` : ''}
+        <div style="font-size:8px;color:#00E676;font-weight:bold;">● STATUS: ${htmlEsc(p.status || 'ONLINE')}</div>
+      </div>`);
+    });
+
+    // ── Moldova Border Points Click ──
+    map.on('click', 'moldova-borders-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const neighbor = p.neighborCountry === 'RO' ? '🇪🇺 Romania (EU)' : '🇺🇦 Ukraine';
+      popup(coords, `<div style="${pStyle}border:1px solid #00E67660;min-width:220px;">
+        <div style="color:#00E676;font-size:12px;font-weight:700;margin-bottom:4px;">PTF ${htmlEsc(p.name)} ↔ ${htmlEsc(p.counterpartName || '')}</div>
+        <div style="font-size:9px;color:#9B978E;margin-bottom:8px;">Neighbor: ${neighbor} · Status: ${htmlEsc(p.status || 'NORMAL')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;text-align:center;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-bottom:6px;">
+          <div><span style="color:#5C5A54;display:block;">Cars</span><strong style="color:#00E676;">${p.waitTimeCarsMinutes}m</strong></div>
+          <div><span style="color:#5C5A54;display:block;">Trucks</span><strong style="color:#FFB300;">${p.waitTimeTrucksMinutes}m</strong></div>
+          <div><span style="color:#5C5A54;display:block;">Buses</span><strong style="color:#00E5FF;">${p.waitTimeBusesMinutes}m</strong></div>
+        </div>
+      </div>`);
+    });
+
+    // ── Moldova Airports Click ──
+    map.on('click', 'moldova-airports-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid #40C4FF60;">
+        <div style="color:#40C4FF;font-size:12px;font-weight:700;margin-bottom:4px;">✈️ ${htmlEsc(p.iata || p.icao)} — ${htmlEsc(p.name)}</div>
+        <div style="font-size:9px;color:#9B978E;margin-bottom:6px;">ICAO: ${htmlEsc(p.icao)} · City: ${htmlEsc(p.city || 'Chișinău')} · Status: ${htmlEsc(p.status || 'OPEN')}</div>
+        <div style="font-size:9px;color:#E8E6E0;">Active Flights: <strong>${p.activeFlightsCount || 0}</strong> · Elevation: <strong>${p.elevationFt || 0} ft</strong></div>
+      </div>`);
+    });
+
+    // ── Moldova Weather Click ──
+    map.on('click', 'moldova-weather-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid #B388FF60;">
+        <div style="color:#B388FF;font-size:12px;font-weight:700;margin-bottom:4px;">🌦️ ${htmlEsc(p.name)}</div>
+        <div style="font-size:14px;font-weight:bold;color:#D4AF37;margin-bottom:4px;">${p.tempC}°C <span style="font-size:10px;color:#9B978E;font-weight:normal;">(feels ${p.feelsLikeC}°C)</span></div>
+        <div style="font-size:9px;color:#9B978E;margin-bottom:6px;">Condition: ${htmlEsc(p.condition || 'Fair')} · Humidity: ${p.humidityPct}% · Wind: ${p.windSpeedKmh} km/h</div>
+      </div>`);
+    });
+
+    // ── Moldova Infrastructure Click ──
+    map.on('click', 'moldova-infra-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid #FFD54F60;">
+        <div style="color:#FFD54F;font-size:12px;font-weight:700;margin-bottom:4px;">⚡ ${htmlEsc(p.name)}</div>
+        <div style="font-size:9px;color:#9B978E;margin-bottom:6px;">Category: ${htmlEsc(p.category || 'INFRASTRUCTURE')}</div>
+      </div>`);
+    });
+
     // ── Generic hover for clickables ──
-    ['conflict-icons','cctv-dots','eq-circles','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots','alert-pin-dots'].forEach(layer => {
+    ['conflict-icons','cctv-dots','eq-circles','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots','alert-pin-dots','moldova-events-dots','moldova-cams-dots','moldova-borders-dots','moldova-airports-dots','moldova-weather-dots','moldova-infra-dots'].forEach(layer => {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     });
@@ -1895,6 +2056,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       if (map.getLayer('cctv-label')) map.setPaintProperty('cctv-label', 'text-color', palette.cctv);
     }, [mapReady, palette.cctv]);
 
+    /* Update day/night overlay opacity for theme */
+    useEffect(() => {
+      if (!mapReady || !mapRef.current) return;
+      const map = mapRef.current;
+      if (map.getLayer('day-night-fill')) {
+        map.setPaintProperty('day-night-fill', 'fill-opacity', theme === 'light' ? 0.08 : 0.35);
+        map.setPaintProperty('day-night-fill', 'fill-color', theme === 'ghost' ? '#0D0030' : (theme === 'light' ? '#1E293B' : '#000022'));
+      }
+    }, [mapReady, theme]);
+
   // ── DECOUPLED LAYER RENDERERS (Performance Optimized) ──
 
   useEffect(() => {
@@ -2289,6 +2460,60 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     return () => clearInterval(timer);
   }, [mapReady, activeLayers.alert_pins]);
 
+  // ── MOLDOVA DATA GEOJSON SYNCS ──
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    
+    // Moldova Events / News
+    const mdEvents = (al.moldova_news || al.moldova_events) && data.moldova_events ? data.moldova_events : [];
+    setGeo('moldova-events', mdEvents.map((ev: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [ev.coordinates?.[1] || 28.8638, ev.coordinates?.[0] || 47.0105] },
+      properties: { id: ev.id, title: ev.title, summary: ev.summary, severity: ev.severity, category: ev.category, sourceName: ev.sourceName, url: ev.url, publishedAt: ev.publishedAt },
+    })));
+
+    // Moldova Cameras
+    const mdCams = al.moldova_cams && data.moldova_cameras ? data.moldova_cameras : [];
+    setGeo('moldova-cams', mdCams.map((c: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
+      properties: { id: c.id, name: c.name, region: c.region, operator: c.operator, road: c.road, snapshotUrl: c.snapshotUrl, status: c.status },
+    })));
+
+    // Moldova Border Crossings
+    const mdBorders = al.moldova_borders && data.moldova_borders ? data.moldova_borders : [];
+    setGeo('moldova-borders', mdBorders.map((b: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [b.lng, b.lat] },
+      properties: { id: b.id, name: b.name, counterpartName: b.counterpartName, neighborCountry: b.neighborCountry, status: b.status, waitTimeCarsMinutes: b.waitTimeCarsMinutes, waitTimeTrucksMinutes: b.waitTimeTrucksMinutes, waitTimeBusesMinutes: b.waitTimeBusesMinutes },
+    })));
+
+    // Moldova Airports
+    const mdAirports = al.moldova_airports && data.moldova_airports ? data.moldova_airports : [];
+    setGeo('moldova-airports', mdAirports.map((a: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [a.lng, a.lat] },
+      properties: { icao: a.icao, iata: a.iata, name: a.name, city: a.city, status: a.status, activeFlightsCount: a.activeFlightsCount, elevationFt: a.elevationFt },
+    })));
+
+    // Moldova Weather Stations
+    const mdWeather = al.moldova_weather && data.moldova_weather ? data.moldova_weather : [];
+    setGeo('moldova-weather', mdWeather.map((w: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [w.lng, w.lat] },
+      properties: { id: w.id, name: w.name, district: w.district, tempC: w.tempC, feelsLikeC: w.feelsLikeC, condition: w.condition, humidityPct: w.humidityPct, windSpeedKmh: w.windSpeedKmh },
+    })));
+
+    // Moldova Infrastructure & GIS
+    const mdInfra = al.moldova_infra && data.moldova_gis ? data.moldova_gis : [];
+    setGeo('moldova-infra', mdInfra.map((f: any) => ({
+      type: 'Feature',
+      geometry: { type: f.type, coordinates: f.coordinates },
+      properties: { id: f.id, name: f.name, category: f.category, ...f.properties },
+    })));
+  }, [mapReady, data.moldova_events, data.moldova_cameras, data.moldova_borders, data.moldova_airports, data.moldova_weather, data.moldova_gis, activeLayers, setGeo]);
+
 
   useEffect(() => {
     if (!mapReady) return;
@@ -2607,14 +2832,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     }
   }, [mapReady, activeLayers.terrain_3d]);
 
-  // Satellite / Dark style switching
+  // Map style switching (Dark / Light / Streets / Satellite)
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
 
     try {
-      if (mapStyle !== 'dark') {
-        // Add satellite raster tiles
+      const beforeLayer = map.getLayer('conflict-icons') ? 'conflict-icons' : (map.getLayer('day-night-fill') ? 'day-night-fill' : undefined);
+
+      // 1. Satellite
+      if (mapStyle === 'satellite') {
         if (!map.getSource('satellite-tiles')) {
           map.addSource('satellite-tiles', {
             type: 'raster',
@@ -2624,14 +2851,71 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           });
         }
         if (!map.getLayer('satellite-layer')) {
-          map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.85 } }, 'day-night-fill');
+          map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.95 } }, beforeLayer);
         } else {
           map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
         }
-      } else {
-        if (map.getLayer('satellite-layer')) {
-          map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+      } else if (map.getLayer('satellite-layer')) {
+        map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+      }
+
+      // 2. Light (Positron / High-Contrast Day Mode)
+      if (mapStyle === 'light') {
+        if (!map.getSource('light-tiles')) {
+          map.addSource('light-tiles', {
+            type: 'raster',
+            tiles: [
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            maxzoom: 19,
+          });
         }
+        if (!map.getLayer('light-layer')) {
+          map.addLayer({
+            id: 'light-layer',
+            type: 'raster',
+            source: 'light-tiles',
+            paint: {
+              'raster-opacity': 1.0,
+              'raster-saturation': -0.65,
+              'raster-contrast': 0.1,
+              'raster-brightness-min': 0.12,
+            }
+          }, beforeLayer);
+        } else {
+          map.setLayoutProperty('light-layer', 'visibility', 'visible');
+        }
+      } else if (map.getLayer('light-layer')) {
+        map.setLayoutProperty('light-layer', 'visibility', 'none');
+      }
+
+      // 3. Voyager (Streets Color Map)
+      if (mapStyle === 'voyager') {
+        if (!map.getSource('voyager-tiles')) {
+          map.addSource('voyager-tiles', {
+            type: 'raster',
+            tiles: [
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            maxzoom: 19,
+          });
+        }
+        if (!map.getLayer('voyager-layer')) {
+          map.addLayer({
+            id: 'voyager-layer',
+            type: 'raster',
+            source: 'voyager-tiles',
+            paint: {
+              'raster-opacity': 1.0,
+            }
+          }, beforeLayer);
+        } else {
+          map.setLayoutProperty('voyager-layer', 'visibility', 'visible');
+        }
+      } else if (map.getLayer('voyager-layer')) {
+        map.setLayoutProperty('voyager-layer', 'visibility', 'none');
       }
     } catch (e) {
       console.warn('Style switch failed:', e);

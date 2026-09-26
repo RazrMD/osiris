@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, Satellite, Sun, AlertTriangle, Camera,
   CloudLightning, Ship, Network, Database, Ghost,
-  Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal
+  Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal, MapPin
 } from 'lucide-react';
 import StyleStudio from './StyleStudio';
 import { TERRAIN_MIN_ZOOM, type TerrainStatus } from '@/lib/map-terrain';
@@ -15,8 +15,8 @@ interface LayerPanelProps {
   activeLayers: any;
   setActiveLayers: React.Dispatch<React.SetStateAction<any>>;
   isMobile?: boolean;
-  theme?: 'core' | 'ghost';
-  setTheme?: (theme: 'core' | 'ghost') => void;
+  theme?: 'core' | 'ghost' | 'light';
+  setTheme?: (theme: 'core' | 'ghost' | 'light') => void;
   /** Server-side capabilities, e.g. { cloudflare: true }. Layers declaring a
    *  `requires` key stay hidden until the matching capability is present. */
   capabilities?: Record<string, boolean>;
@@ -48,6 +48,21 @@ interface LayerGroupDef {
 }
 
 const LAYER_GROUPS: LayerGroupDef[] = [
+  {
+    label: 'MOLDOVA',
+    fullLabel: '🇲🇩 MOLDOVA INTEL',
+    icon: MapPin,
+    layers: [
+      { key: 'moldova_news', label: 'Moldpres Dispatches', dataKey: 'moldova_news' },
+      { key: 'moldova_events', label: 'Incidents & Alerts', dataKey: 'moldova_events' },
+      { key: 'moldova_cams', label: 'ASD & City Cameras', dataKey: 'moldova_cameras' },
+      { key: 'moldova_borders', label: 'Border Crossings (PTF)', dataKey: 'moldova_borders' },
+      { key: 'moldova_airports', label: 'Aviation & Hubs', dataKey: 'moldova_airports' },
+      { key: 'moldova_weather', label: 'Weather Stations', dataKey: 'moldova_weather' },
+      { key: 'moldova_quakes', label: 'Vrancea/MD Quakes', dataKey: 'moldova_earthquakes' },
+      { key: 'moldova_infra', label: 'Critical Infra & GIS', dataKey: 'moldova_gis' },
+    ],
+  },
   {
     label: 'SDK',
     fullLabel: 'OSIRIS SDK',
@@ -524,15 +539,39 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         {studioOpen && <StyleStudio onClose={() => setStudioOpen(false)} />}
       </AnimatePresence>
 
+      {/* Light / Day Mode Toggle */}
+      {setTheme && (
+        <button
+          onClick={() => setTheme(theme === 'light' ? 'core' : 'light')}
+          className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-500 cursor-pointer"
+          style={{
+            background: theme === 'light' ? 'rgba(var(--gold-rgb), 0.15)' : 'transparent',
+          }}
+          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light / Day Mode'}
+          aria-label="Toggle Light / Day Mode"
+        >
+          <Sun
+            className="transition-all duration-500"
+            style={{
+              width: 16,
+              height: 16,
+              color: theme === 'light' ? 'var(--gold-primary)' : 'rgba(255,255,255,0.25)',
+              filter: theme === 'light' ? 'drop-shadow(0 0 6px var(--gold-glow))' : 'none',
+            }}
+          />
+        </button>
+      )}
+
       {/* Ghost Protocol Toggle */}
       {setTheme && (
         <button
-          onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
+          onClick={() => setTheme(theme === 'ghost' ? 'core' : 'ghost')}
           className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-500 cursor-pointer"
           style={{
             background: theme === 'ghost' ? 'rgba(179, 136, 255, 0.1)' : 'transparent',
           }}
           title="Ghost Protocol"
+          aria-label="Toggle Ghost Protocol"
         >
           <Ghost
             className="transition-all duration-500"
