@@ -20,5 +20,6 @@ export function normalizeCamera(raw: Partial<MoldovaCamera> & { id: string; name
     operator: raw.operator || 'ASD',
     status: raw.status || 'ONLINE',
     lastUpdated: raw.lastUpdated || new Date().toISOString(),
+    isVerified: raw.isVerified ?? true,
   };
 }

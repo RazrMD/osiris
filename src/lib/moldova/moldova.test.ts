@@ -4,16 +4,42 @@ import {
   normalizeText,
   MOLDOVA_GAZETTEER,
 } from './geocoding/moldova-gazetteer';
-import { parseMoldpresRss } from './normalizers/news-normalizer';
+import { parseMoldpresRss, parseGenericRssFeed } from './normalizers/news-normalizer';
+import { extractEntities } from './normalizers/entity-extractor';
 import { classifyMoldovaText } from './events/event-classifier';
 import { correlateEvents } from './events/event-correlator';
 import { createMoldovaEvent } from './normalizers/events-normalizer';
 import { normalizeWeatherStation, mapWeatherConditionCode } from './normalizers/weather-normalizer';
 import { normalizeBorderCrossing } from './normalizers/border-normalizer';
 import { normalizeAirport } from './normalizers/aviation-normalizer';
-import { getSourcesHealth } from './sources/source-registry';
+import { getSourcesHealth, getMasterSourcesRegistry } from './sources/source-registry';
+import { validateUrlSafety } from './security/safe-fetch';
 
 describe('Moldova Intelligence Layer', () => {
+  describe('SSRF Protection & Security Validation', () => {
+    it('allows verified Moldova intelligence domains', () => {
+      expect(validateUrlSafety('https://newsmaker.md/ro/feed').safe).toBe(true);
+      expect(validateUrlSafety('https://www.zdg.md/feed/').safe).toBe(true);
+      expect(validateUrlSafety('https://dataset.gov.md/api/3/action/package_search').safe).toBe(true);
+      expect(validateUrlSafety('https://statbank.statistica.md/pxweb/api/v1/ro/').safe).toBe(true);
+      expect(validateUrlSafety('https://air-quality-api.open-meteo.com/v1/air-quality').safe).toBe(true);
+      expect(validateUrlSafety('https://aviationweather.gov/api/data/metar').safe).toBe(true);
+    });
+
+    it('blocks internal, private IPs, loopback, and metadata endpoints', () => {
+      expect(validateUrlSafety('http://127.0.0.1:8080/').safe).toBe(false);
+      expect(validateUrlSafety('http://localhost:3000/api').safe).toBe(false);
+      expect(validateUrlSafety('http://169.254.169.254/latest/meta-data').safe).toBe(false);
+      expect(validateUrlSafety('http://192.168.1.1/admin').safe).toBe(false);
+      expect(validateUrlSafety('http://10.0.0.5/').safe).toBe(false);
+      expect(validateUrlSafety('ftp://gov.md/data').safe).toBe(false);
+    });
+
+    it('blocks unlisted unknown external domains', () => {
+      expect(validateUrlSafety('https://evil-attacker.com/rss').safe).toBe(false);
+    });
+  });
+
   describe('Offline Gazetteer & Geocoding', () => {
     it('contains major municipalities, borders, and airports', () => {
       expect(MOLDOVA_GAZETTEER.length).toBeGreaterThan(30);
@@ -49,35 +75,50 @@ describe('Moldova Intelligence Layer', () => {
     });
   });
 
-  describe('Moldpres RSS Normalizer', () => {
+  describe('Entity Extraction & Resolution', () => {
+    it('extracts government institutions and infrastructure from Romanian text', () => {
+      const text = 'Poliția de Frontieră și Serviciul Vamal au anunțat controale sporite la Aeroportul Internațional Chișinău.';
+      const entities = extractEntities(text);
+      expect(entities.length).toBeGreaterThanOrEqual(2);
+      expect(entities.some(e => e.name === 'Poliția de Frontieră')).toBe(true);
+      expect(entities.some(e => e.name === 'Aeroportul Internațional Chișinău (RMO / LUKK)')).toBe(true);
+    });
+
+    it('extracts entities from Russian news text', () => {
+      const text = 'Правительство Молдовы и Пограничная полиция утвердили план действий на КПП Леушены.';
+      const entities = extractEntities(text);
+      expect(entities.some(e => e.name === 'Guvernul Republicii Moldova')).toBe(true);
+      expect(entities.some(e => e.name === 'PTF Leușeni - Albița')).toBe(true);
+    });
+  });
+
+  describe('Multi-Source News Normalizer', () => {
     const sampleXml = `<?xml version="1.0" encoding="utf-8"?>
       <rss version="2.0">
         <channel>
-          <title>MOLDPRES News</title>
+          <title>NewsMaker Moldova</title>
           <item>
-            <title><![CDATA[Premierul a vizitat noul pod de la Ungheni]]></title>
-            <link>https://www.moldpres.md/news/2026/09/26/26001234</link>
-            <description><![CDATA[Prim-ministrul a inspectat infrastructura transfrontalieră la Ungheni.]]></description>
+            <title><![CDATA[Lucrări pe traseul Chișinău - Leușeni]]></title>
+            <link>https://newsmaker.md/ro/lucrari-leuseni</link>
+            <description><![CDATA[ASD a demarat reparația pe traseul M1 spre vama Leușeni.]]></description>
             <pubDate>Sat, 26 Sep 2026 10:00:00 +0300</pubDate>
-            <category>Social</category>
-          </item>
-          <item>
-            <title>Avertizare meteo de ploi torențiale în centrul țării</title>
-            <link>https://www.moldpres.md/news/2026/09/26/26001235</link>
-            <description>Serviciul Hidrometeorologic de Stat a emis cod galben de ploi la Chișinău.</description>
-            <pubDate>Sat, 26 Sep 2026 11:30:00 +0300</pubDate>
-            <category>Meteo</category>
+            <category>Infrastructură</category>
           </item>
         </channel>
       </rss>`;
 
-    it('parses XML items cleanly without HTML or CDATA tags', () => {
-      const articles = parseMoldpresRss(sampleXml, 'ro');
-      expect(articles.length).toBe(2);
-      expect(articles[0].title).toBe('Premierul a vizitat noul pod de la Ungheni');
-      expect(articles[0].location?.nameRo).toBe('Ungheni');
-      expect(articles[1].title).toBe('Avertizare meteo de ploi torențiale în centrul țării');
-      expect(articles[1].location?.nameRo).toBe('Chișinău');
+    it('parses generic RSS items with entity linking', () => {
+      const articles = parseGenericRssFeed(sampleXml, {
+        sourceId: 'newsmaker-ro',
+        sourceName: 'NewsMaker (RO)',
+        agency: 'NewsMaker',
+        defaultLanguage: 'ro',
+      });
+      expect(articles.length).toBe(1);
+      expect(articles[0].title).toBe('Lucrări pe traseul Chișinău - Leușeni');
+      expect(articles[0].agency).toBe('NewsMaker');
+      expect(articles[0].location?.nameRo).toBe('Chișinău');
+      expect(articles[0].entities?.length).toBeGreaterThan(0);
     });
   });
 
@@ -119,7 +160,7 @@ describe('Moldova Intelligence Layer', () => {
         summary: 'Echipaje la fata locului',
         url: 'https://politia.md',
         severity: 'CRITICAL',
-        coordinates: [47.052, 28.702], // ~250m away
+        coordinates: [47.052, 28.702],
         startTime: new Date().toISOString(),
       });
 
@@ -178,24 +219,35 @@ describe('Moldova Intelligence Layer', () => {
     it('normalizes airports', () => {
       const ap = normalizeAirport({
         icao: 'LUKK',
-        iata: 'KIV',
-        name: 'Chișinău International Airport',
+        iata: 'RMO',
+        name: 'Aeroportul Internațional Chișinău',
         lat: 47.027,
         lng: 28.931,
       });
 
-      expect(ap.iata).toBe('KIV');
+      expect(ap.iata).toBe('RMO');
       expect(ap.status).toBe('OPEN');
     });
   });
 
-  describe('Source Registry & Telemetry', () => {
-    it('returns healthy status items for all configured sources', () => {
+  describe('Master Source Registry', () => {
+    it('contains verified sources with full metadata schema', () => {
+      const masterRegistry = getMasterSourcesRegistry();
+      expect(masterRegistry.length).toBeGreaterThanOrEqual(10);
+      for (const item of masterRegistry) {
+        expect(item.sourceId).toBeDefined();
+        expect(item.name).toBeDefined();
+        expect(item.status).toBe('VERIFIED');
+        expect(item.attribution).toBeDefined();
+        expect(item.updateFrequency).toBeDefined();
+      }
+    });
+
+    it('tracks active health across all domains', () => {
       const health = getSourcesHealth();
-      expect(health.length).toBeGreaterThanOrEqual(6);
-      expect(health.some(h => h.id === 'moldpres-news')).toBe(true);
-      expect(health.some(h => h.id === 'open-meteo-md')).toBe(true);
-      expect(health.some(h => h.id === 'usgs-infp-quakes')).toBe(true);
+      expect(health.length).toBeGreaterThanOrEqual(10);
+      expect(health.some(h => h.id === 'date-gov-md-ckan')).toBe(true);
+      expect(health.some(h => h.id === 'open-meteo-weather')).toBe(true);
     });
   });
 });

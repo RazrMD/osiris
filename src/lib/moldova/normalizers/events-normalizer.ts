@@ -16,7 +16,7 @@ export function createMoldovaEvent(params: {
   status?: 'ACTIVE' | 'RESOLVED' | 'INVESTIGATING' | 'MONITORING';
   location?: GeocodedLocation;
   coordinates?: [number, number];
-  language?: 'ro' | 'ru' | 'en' | 'mixed';
+  language?: 'ro' | 'ru' | 'en' | 'uk' | 'mixed';
   tags?: string[];
   impactRadiusKm?: number;
   metadata?: Record<string, unknown>;

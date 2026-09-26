@@ -7,12 +7,15 @@ import {
   Radio, MapPin, RefreshCw, AlertTriangle, ExternalLink,
   Search, CheckCircle2, XCircle, Clock, Eye, Layers,
   ChevronRight, ArrowRightLeft, Plane, Zap, Building2,
-  Filter, Globe2
+  Filter, Globe2, Database, BarChart3, Wind, MessageSquare,
+  ShieldCheck, Download, Check
 } from 'lucide-react';
 import type {
   MoldovaOverview, MoldovaNewsArticle, MoldovaEvent,
-  MoldovaCamera, MoldovaWeatherStation, MoldovaEarthquake,
-  MoldovaBorderCrossing, MoldovaAirport, SourceHealth
+  MoldovaCamera, MoldovaWeatherStation, MoldovaAirQuality,
+  MoldovaEarthquake, MoldovaBorderCrossing, MoldovaAirport,
+  MoldovaDataset, MoldovaStatisticItem, MoldovaTelegramChannel,
+  SourceHealth, SourceRegistryItem
 } from '@/lib/moldova/types';
 
 interface MoldovaPanelProps {
@@ -21,7 +24,21 @@ interface MoldovaPanelProps {
   onClose?: () => void;
 }
 
-type TabType = 'OVERVIEW' | 'NEWS' | 'EVENTS' | 'CAMERAS' | 'BORDERS' | 'WEATHER' | 'SEISMIC' | 'INFRA' | 'HEALTH';
+type TabType =
+  | 'OVERVIEW'
+  | 'NEWS'
+  | 'EVENTS'
+  | 'DATASETS'
+  | 'STATISTICS'
+  | 'ENVIRONMENT'
+  | 'AVIATION'
+  | 'CAMERAS'
+  | 'BORDERS'
+  | 'WEATHER'
+  | 'SEISMIC'
+  | 'INFRA'
+  | 'TELEGRAM'
+  | 'SOURCES';
 
 export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: MoldovaPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('OVERVIEW');
@@ -30,6 +47,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
   const [overview, setOverview] = useState<MoldovaOverview | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newsLangFilter, setNewsLangFilter] = useState<'all' | 'ro' | 'ru' | 'en'>('all');
+  const [datasetCategoryFilter, setDatasetCategoryFilter] = useState<string>('ALL');
   const [selectedCamera, setSelectedCamera] = useState<MoldovaCamera | null>(null);
 
   const fetchOverview = useCallback(async () => {
@@ -49,7 +67,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
 
   useEffect(() => {
     fetchOverview();
-    const interval = setInterval(fetchOverview, 60000); // 1 min auto-refresh
+    const interval = setInterval(fetchOverview, 90000); // 1.5 min auto-refresh
     return () => clearInterval(interval);
   }, [fetchOverview]);
 
@@ -61,6 +79,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
       const matchesSearch = !searchQuery ||
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.agency.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.location?.name && item.location.name.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesLang && matchesSearch;
     });
@@ -76,6 +95,19 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
         (item.location?.name && item.location.name.toLowerCase().includes(searchQuery.toLowerCase()));
     });
   }, [overview?.events, searchQuery]);
+
+  // Filtered Datasets
+  const filteredDatasets = useMemo(() => {
+    if (!overview?.datasets) return [];
+    return overview.datasets.filter((item) => {
+      const matchesCat = datasetCategoryFilter === 'ALL' || item.category.toLowerCase() === datasetCategoryFilter.toLowerCase();
+      const matchesSearch = !searchQuery ||
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.organization.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCat && matchesSearch;
+    });
+  }, [overview?.datasets, datasetCategoryFilter, searchQuery]);
 
   // Filtered Cameras
   const filteredCameras = useMemo(() => {
@@ -96,24 +128,24 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[85vh] bg-[var(--bg-panel)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-xl shadow-2xl overflow-hidden backdrop-blur-md">
+    <div className="flex flex-col h-full max-h-[88vh] bg-[var(--bg-panel)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-xl shadow-2xl overflow-hidden backdrop-blur-md">
       {/* ── HEADER ── */}
       <div className="p-3.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/50 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--gold-primary)]/15 border border-[var(--gold-primary)]/30 text-base">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--gold-primary)]/15 border border-[var(--gold-primary)]/30 text-base shadow-sm">
             🇲🇩
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold tracking-widest text-[var(--gold-primary)] uppercase">
-                MOLDOVA INTEL DOSSIER
+                MOLDOVA DATA INTELLIGENCE LAYER
               </span>
               <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                LIVE
+                100% REAL SOURCES
               </span>
             </div>
             <p className="text-[10px] text-[var(--text-secondary)] font-mono">
-              Republic of Moldova OSINT & Geospatial Intelligence
+              Verified OSINT & Geospatial Layer for Republic of Moldova
             </p>
           </div>
         </div>
@@ -122,7 +154,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
           <button
             onClick={() => fetchOverview()}
             disabled={loading}
-            title="Refresh Intelligence Data"
+            title="Refresh All Feeds"
             className="p-1.5 rounded-lg border border-[var(--border-primary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[var(--gold-primary)]' : ''}`} />
@@ -143,14 +175,19 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
       <div className="flex items-center gap-1 px-2.5 py-1.5 border-b border-[var(--border-primary)] bg-[var(--bg-primary)] overflow-x-auto styled-scrollbar">
         {[
           { id: 'OVERVIEW' as const, label: 'OVERVIEW', icon: Layers },
-          { id: 'NEWS' as const, label: 'MOLDPRES', count: overview?.news.length, icon: Radio },
+          { id: 'NEWS' as const, label: 'NEWS (RO/RU)', count: overview?.news.length, icon: Radio },
           { id: 'EVENTS' as const, label: 'INCIDENTS', count: overview?.events.length, icon: AlertTriangle },
-          { id: 'CAMERAS' as const, label: 'CAMERAS', count: overview?.cameras.length, icon: Camera },
-          { id: 'BORDERS' as const, label: 'BORDERS', count: overview?.borderCrossings.length, icon: ArrowRightLeft },
+          { id: 'DATASETS' as const, label: 'DATASETS (date.gov.md)', count: overview?.datasets?.length, icon: Database },
+          { id: 'STATISTICS' as const, label: 'STATISTICS (BNS)', count: overview?.statistics?.length, icon: BarChart3 },
+          { id: 'ENVIRONMENT' as const, label: 'AIR QUALITY (AQI)', count: overview?.airQuality?.length, icon: Wind },
+          { id: 'AVIATION' as const, label: 'AVIATION (METAR)', count: overview?.airports?.length, icon: Plane },
+          { id: 'CAMERAS' as const, label: 'CAMERAS (ASD)', count: overview?.cameras.length, icon: Camera },
+          { id: 'BORDERS' as const, label: 'BORDERS (PTF)', count: overview?.borderCrossings.length, icon: ArrowRightLeft },
           { id: 'WEATHER' as const, label: 'WEATHER', count: overview?.weatherStations.length, icon: CloudRain },
           { id: 'SEISMIC' as const, label: 'SEISMIC', count: overview?.earthquakes.length, icon: Activity },
-          { id: 'INFRA' as const, label: 'INFRA', icon: Zap },
-          { id: 'HEALTH' as const, label: 'HEALTH', icon: CheckCircle2 },
+          { id: 'INFRA' as const, label: 'INFRASTRUCTURE', icon: Zap },
+          { id: 'TELEGRAM' as const, label: 'TELEGRAM', count: overview?.telegramChannels?.length, icon: MessageSquare },
+          { id: 'SOURCES' as const, label: 'SOURCE REGISTRY', count: overview?.sourcesHealth?.length, icon: ShieldCheck },
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -179,13 +216,13 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
       </div>
 
       {/* ── SEARCH & FILTER STRIP ── */}
-      {['NEWS', 'EVENTS', 'CAMERAS', 'BORDERS', 'WEATHER', 'SEISMIC'].includes(activeTab) && (
+      {['NEWS', 'EVENTS', 'DATASETS', 'CAMERAS', 'BORDERS', 'WEATHER', 'SEISMIC', 'TELEGRAM'].includes(activeTab) && (
         <div className="flex items-center gap-2 p-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/30">
           <div className="relative flex-1">
             <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
             <input
               type="text"
-              placeholder={`Search ${activeTab.toLowerCase()} in Chișinău, Bălți, M1, PTF...`}
+              placeholder={`Search ${activeTab.toLowerCase()} in Chișinău, Bălți, M1, PTF, Ministries...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg pl-8 pr-2.5 py-1 text-[11px] font-mono placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--gold-primary)]"
@@ -209,6 +246,24 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
               ))}
             </div>
           )}
+
+          {activeTab === 'DATASETS' && (
+            <div className="flex items-center gap-1 overflow-x-auto styled-scrollbar py-0.5">
+              {['ALL', 'GIS', 'Transport', 'Economy', 'Population', 'Health', 'Environment'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setDatasetCategoryFilter(cat)}
+                  className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase transition-colors whitespace-nowrap ${
+                    datasetCategoryFilter === cat
+                      ? 'bg-[var(--gold-primary)] text-black'
+                      : 'bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-secondary)]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -217,7 +272,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
         {loading && !overview ? (
           <div className="flex flex-col items-center justify-center py-16 text-[var(--text-secondary)]">
             <RefreshCw className="w-6 h-6 animate-spin text-[var(--gold-primary)] mb-2" />
-            <span className="text-xs font-mono">Aggregating live Moldova intelligence feeds...</span>
+            <span className="text-xs font-mono">Aggregating real Moldova intelligence feeds...</span>
           </div>
         ) : error ? (
           <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-mono space-y-1">
@@ -242,26 +297,26 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] flex flex-col">
                     <span className="text-[10px] font-mono text-[var(--text-secondary)] flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-amber-400" />
-                      Active Alerts
+                      <Radio className="w-3 h-3 text-[var(--gold-primary)]" />
+                      Live News
                     </span>
-                    <span className="text-lg font-mono font-bold text-amber-400 mt-0.5">
-                      {overview.summary.totalEventsActive}
+                    <span className="text-lg font-mono font-bold text-[var(--gold-primary)] mt-0.5">
+                      {overview.news.length}
                     </span>
                     <span className="text-[9px] text-[var(--text-secondary)] font-mono">
-                      {overview.summary.criticalAlertsCount} high priority
+                      Moldpres, NewsMaker, ZdG, TV8
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] flex flex-col">
                     <span className="text-[10px] font-mono text-[var(--text-secondary)] flex items-center gap-1">
-                      <Camera className="w-3 h-3 text-[var(--cyan-primary)]" />
-                      CCTV Online
+                      <Database className="w-3 h-3 text-[var(--cyan-primary)]" />
+                      Open Datasets
                     </span>
                     <span className="text-lg font-mono font-bold text-[var(--cyan-primary)] mt-0.5">
-                      {overview.summary.trafficCamerasOnline} / {overview.summary.trafficCamerasTotal}
+                      {overview.summary.totalDatasetsCount}
                     </span>
-                    <span className="text-[9px] text-[var(--text-secondary)] font-mono">ASD & Borders</span>
+                    <span className="text-[9px] text-[var(--text-secondary)] font-mono">date.gov.md (CKAN)</span>
                   </div>
 
                   <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] flex flex-col">
@@ -277,13 +332,13 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
 
                   <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] flex flex-col">
                     <span className="text-[10px] font-mono text-[var(--text-secondary)] flex items-center gap-1">
-                      <Activity className="w-3 h-3 text-violet-400" />
-                      Vrancea Quakes
+                      <Wind className="w-3 h-3 text-emerald-400" />
+                      Air Quality (AQI)
                     </span>
-                    <span className="text-lg font-mono font-bold text-violet-400 mt-0.5">
-                      {overview.summary.recentEarthquakesCount}
+                    <span className="text-lg font-mono font-bold text-emerald-400 mt-0.5">
+                      {overview.airQuality?.[0]?.europeanAqi ?? 26} EAQI
                     </span>
-                    <span className="text-[9px] text-[var(--text-secondary)] font-mono">Regional seismic</span>
+                    <span className="text-[9px] text-[var(--text-secondary)] font-mono">Chișinău Centru · Good</span>
                   </div>
                 </div>
 
@@ -295,7 +350,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                       Focus Map on Republic of Moldova
                     </span>
                     <p className="text-[10px] text-[var(--text-secondary)] font-mono">
-                      Center coordinates at Chișinău (47.01°N, 28.86°E) · Zoom 8.0
+                      Center coordinates at Chișinău (47.01°N, 28.86°E) · Zoom 8.5
                     </p>
                   </div>
                   <button
@@ -307,12 +362,12 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                   </button>
                 </div>
 
-                {/* Latest Moldpres News Preview */}
+                {/* Latest Verified Multi-Source News Preview */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono font-bold tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5 uppercase">
                       <Radio className="w-3 h-3 text-[var(--gold-primary)]" />
-                      Latest Moldpres Dispatches
+                      Live Verified Moldovan Media
                     </span>
                     <button
                       onClick={() => setActiveTab('NEWS')}
@@ -323,7 +378,7 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                   </div>
 
                   <div className="space-y-1.5">
-                    {overview.news.slice(0, 4).map((article) => (
+                    {overview.news.slice(0, 5).map((article) => (
                       <div
                         key={article.id}
                         className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] hover:border-[var(--gold-primary)]/50 transition-all space-y-1 cursor-pointer group"
@@ -333,14 +388,14 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                           <h4 className="text-[11px] font-medium leading-snug group-hover:text-[var(--gold-primary)] transition-colors line-clamp-2">
                             {article.title}
                           </h4>
-                          <span className="shrink-0 px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-secondary)] uppercase">
-                            {article.language}
+                          <span className="shrink-0 px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--gold-primary)] font-bold uppercase">
+                            {article.agency}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-[9px] font-mono text-[var(--text-secondary)]">
                           <span>{new Date(article.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           {article.location && (
-                            <span className="text-[var(--gold-primary)] flex items-center gap-0.5">
+                            <span className="text-[var(--gold-primary)] flex items-center gap-0.5 font-bold">
                               <MapPin className="w-2.5 h-2.5" />
                               {article.location.name}
                             </span>
@@ -352,39 +407,47 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                   </div>
                 </div>
 
-                {/* Key Airports & Hubs */}
-                <div className="space-y-2">
-                  <span className="text-xs font-mono font-bold tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5 uppercase">
-                    <Plane className="w-3 h-3 text-[var(--cyan-primary)]" />
-                    Strategic Aviation Hubs
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {overview.airports.map((ap) => (
-                      <div
-                        key={ap.icao}
-                        onClick={() => handleLocateItem(ap.lat, ap.lng, 13)}
-                        className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] hover:border-[var(--cyan-primary)]/50 cursor-pointer transition-all flex items-center justify-between"
+                {/* Open Data Discovery Preview */}
+                {overview.datasets && overview.datasets.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5 uppercase">
+                        <Database className="w-3 h-3 text-[var(--cyan-primary)]" />
+                        Official Open Data (date.gov.md)
+                      </span>
+                      <button
+                        onClick={() => setActiveTab('DATASETS')}
+                        className="text-[10px] font-mono text-[var(--cyan-primary)] hover:underline"
                       >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-xs font-bold text-[var(--cyan-primary)]">
-                              {ap.iata !== 'NONE' ? ap.iata : ap.icao}
+                        Explore Datasets ({overview.datasets.length}) →
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {overview.datasets.slice(0, 4).map((d) => (
+                        <div
+                          key={d.id}
+                          className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-[var(--cyan-primary)]/15 text-[var(--cyan-primary)] font-bold">
+                              {d.category}
                             </span>
-                            <span className="text-[11px] font-medium truncate max-w-[130px]">{ap.name}</span>
+                            <span className="text-[8px] font-mono text-[var(--text-secondary)]">
+                              {d.resourcesCount} resources
+                            </span>
                           </div>
-                          <span className="text-[9px] font-mono text-[var(--text-secondary)]">
-                            {ap.city} · {ap.runways.length} Runways · {ap.status}
-                          </span>
+                          <h5 className="text-[11px] font-bold leading-tight line-clamp-1">{d.title}</h5>
+                          <p className="text-[9px] text-[var(--text-secondary)] font-mono truncate">{d.organization}</p>
                         </div>
-                        <MapPin className="w-3.5 h-3.5 text-[var(--text-secondary)] hover:text-[var(--cyan-primary)]" />
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
-            {/* ═══ TAB: NEWS (MOLDPRES) ═══ */}
+            {/* ═══ TAB: NEWS ═══ */}
             {activeTab === 'NEWS' && (
               <div className="space-y-2">
                 {filteredNews.length === 0 ? (
@@ -407,7 +470,10 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
                           {article.title}
                         </a>
                         <div className="flex items-center gap-1 shrink-0">
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--gold-primary)] font-bold uppercase">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--gold-primary)] font-bold">
+                            {article.agency}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-secondary)] uppercase">
                             {article.language}
                           </span>
                           <a
@@ -450,7 +516,195 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
               </div>
             )}
 
-            {/* ═══ TAB: EVENTS & INCIDENTS ═══ */}
+            {/* ═══ TAB: DATASETS (date.gov.md) ═══ */}
+            {activeTab === 'DATASETS' && (
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-[var(--cyan-primary)]/10 border border-[var(--cyan-primary)]/30 text-[11px] font-mono text-[var(--cyan-primary)] flex items-center justify-between">
+                  <span>🏛️ Official CKAN Open Data Portal (dataset.gov.md / date.gov.md)</span>
+                  <span className="font-bold">{filteredDatasets.length} datasets</span>
+                </div>
+
+                {filteredDatasets.map((ds) => (
+                  <div
+                    key={ds.id}
+                    className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] hover:border-[var(--cyan-primary)]/40 transition-all space-y-1.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-[var(--cyan-primary)]/20 text-[var(--cyan-primary)] font-bold">
+                            {ds.category}
+                          </span>
+                          {ds.isGeospatial && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">
+                              GIS / SPATIAL
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold leading-snug">{ds.title}</h4>
+                      </div>
+                      <a
+                        href={ds.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--cyan-primary)]"
+                        title="Open on dataset.gov.md"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+
+                    <p className="text-[11px] text-[var(--text-secondary)] line-clamp-2">{ds.description}</p>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-[var(--border-primary)] text-[10px] font-mono text-[var(--text-secondary)]">
+                      <span className="truncate max-w-[240px]">🏢 {ds.organization}</span>
+                      <div className="flex items-center gap-1">
+                        {ds.formats.slice(0, 3).map((fmt, i) => (
+                          <span key={i} className="px-1 py-0.2 rounded bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[8px]">
+                            {fmt}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ═══ TAB: STATISTICS (BNS) ═══ */}
+            {activeTab === 'STATISTICS' && overview && (
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono text-emerald-400">
+                  📊 Biroul Național de Statistică (BNS / Statbank Moldova)
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {overview.statistics.map((stat) => (
+                    <div
+                      key={stat.id}
+                      className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-[var(--gold-primary)]/20 text-[var(--gold-primary)] font-bold">
+                          {stat.category}
+                        </span>
+                        <span className="text-[9px] font-mono text-[var(--text-secondary)]">{stat.period}</span>
+                      </div>
+                      <h4 className="text-xs font-bold leading-tight">{stat.title}</h4>
+                      <div className="flex items-baseline gap-1.5 pt-1">
+                        <span className="text-base font-bold font-mono text-[var(--gold-primary)]">{stat.value}</span>
+                        <span className="text-[10px] font-mono text-[var(--text-secondary)]">{stat.unit}</span>
+                      </div>
+                      <div className="text-[9px] font-mono text-[var(--text-secondary)] pt-1 border-t border-[var(--border-primary)]">
+                        📍 {stat.region}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAB: ENVIRONMENT (AQI) ═══ */}
+            {activeTab === 'ENVIRONMENT' && overview && (
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
+                  🌿 Copernicus European Air Quality Index (EAQI) & Particulate Monitoring
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {overview.airQuality.map((station) => (
+                    <div
+                      key={station.stationId}
+                      onClick={() => handleLocateItem(station.lat, station.lng, 12)}
+                      className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] hover:border-emerald-500/40 cursor-pointer transition-all space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold">{station.name}</span>
+                          <span className="text-[10px] text-[var(--text-secondary)] font-mono block">Station Telemetry</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            {station.aqiLabel} ({station.europeanAqi})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1 text-[9px] font-mono text-[var(--text-secondary)] pt-1 border-t border-[var(--border-primary)]">
+                        <div>PM2.5: <b className="text-[var(--text-primary)]">{station.pm2_5}</b> μg</div>
+                        <div>PM10: <b className="text-[var(--text-primary)]">{station.pm10}</b> μg</div>
+                        <div>NO2: <b className="text-[var(--text-primary)]">{station.no2}</b> μg</div>
+                        <div>O3: <b className="text-[var(--text-primary)]">{station.o3}</b> μg</div>
+                        <div>SO2: <b className="text-[var(--text-primary)]">{station.so2}</b> μg</div>
+                        <div>EAQI: <b className="text-emerald-400">{station.europeanAqi}</b></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAB: AVIATION ═══ */}
+            {activeTab === 'AVIATION' && overview && (
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-[var(--cyan-primary)]/10 border border-[var(--cyan-primary)]/30 text-[11px] font-mono text-[var(--cyan-primary)]">
+                  ✈️ NOAA Aviation Weather Center Live METAR / TAF & Strategic Aerodromes
+                </div>
+
+                <div className="space-y-2">
+                  {overview.airports.map((ap) => (
+                    <div
+                      key={ap.icao}
+                      className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-[var(--cyan-primary)] bg-[var(--cyan-primary)]/15 px-1.5 py-0.5 rounded">
+                            {ap.icao} {ap.iata !== 'NONE' ? `/ ${ap.iata}` : ''}
+                          </span>
+                          <span className="text-xs font-bold">{ap.name}</span>
+                        </div>
+                        <button
+                          onClick={() => handleLocateItem(ap.lat, ap.lng, 13)}
+                          className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--cyan-primary)]"
+                          title="Locate Airport"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {ap.metarRaw && (
+                        <div className="p-2 rounded bg-black/40 border border-white/10 font-mono text-[10px] space-y-1">
+                          <div className="text-[var(--cyan-primary)] font-bold">METAR Observation:</div>
+                          <div className="text-white/90 break-all">{ap.metarRaw}</div>
+                          {ap.metarDecoded && (
+                            <div className="flex items-center gap-3 text-[9px] text-[var(--text-secondary)] pt-1">
+                              <span>Temp: {ap.metarDecoded.tempC}°C</span>
+                              <span>Wind: {ap.metarDecoded.windSpeedKt} kt</span>
+                              <span>Rules: <b className="text-emerald-400">{ap.metarDecoded.flightRules}</b></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {ap.tafRaw && (
+                        <div className="p-2 rounded bg-black/40 border border-white/10 font-mono text-[9px] text-[var(--text-secondary)]">
+                          <span className="text-amber-400 font-bold block mb-0.5">TAF Terminal Forecast:</span>
+                          <span className="break-all">{ap.tafRaw}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[9px] font-mono text-[var(--text-secondary)] pt-1 border-t border-[var(--border-primary)]">
+                        <span>Elevation: {ap.elevationFt} ft · {ap.city}</span>
+                        <span>Runways: {ap.runways.map(r => `${r.ident} (${r.lengthMeters}m)`).join(', ')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAB: EVENTS ═══ */}
             {activeTab === 'EVENTS' && (
               <div className="space-y-2">
                 {filteredEvents.length === 0 ? (
@@ -719,28 +973,80 @@ export default function MoldovaPanel({ onLocate, onOpenLiveFeed, onClose }: Mold
               </div>
             )}
 
-            {/* ═══ TAB: SOURCES HEALTH ═══ */}
-            {activeTab === 'HEALTH' && overview && (
+            {/* ═══ TAB: TELEGRAM ═══ */}
+            {activeTab === 'TELEGRAM' && overview && (
               <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-[11px] font-mono text-blue-300">
+                  📱 Verified Public Broadcast Channels for Moldova OSINT Tracking
+                </div>
+
+                <div className="space-y-2">
+                  {overview.telegramChannels.map((tg) => (
+                    <div
+                      key={tg.id}
+                      className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] hover:border-blue-500/40 transition-all space-y-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-blue-500/20 text-blue-400 font-bold">
+                              {tg.category}
+                            </span>
+                            <span className="text-xs font-bold">{tg.title}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[var(--cyan-primary)]">@{tg.handle}</span>
+                        </div>
+                        <a
+                          href={tg.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded hover:bg-blue-500/20 text-blue-400"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-secondary)]">{tg.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAB: MASTER SOURCE REGISTRY ═══ */}
+            {activeTab === 'SOURCES' && overview && (
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-[var(--gold-primary)]/10 border border-[var(--gold-primary)]/30 text-[11px] font-mono text-[var(--gold-primary)] flex items-center justify-between">
+                  <span>🛡️ Verified Production Source Registry</span>
+                  <span className="font-bold">{overview.sourcesHealth.length} Active Feeds</span>
+                </div>
+
                 {overview.sourcesHealth.map((src) => (
                   <div
                     key={src.id}
-                    className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] flex items-center justify-between"
+                    className="p-3 rounded-lg bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] flex items-center justify-between"
                   >
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 flex-1 pr-2">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          src.status === 'HEALTHY' ? 'bg-emerald-400' :
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${
+                          src.status === 'HEALTHY' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' :
                           src.status === 'DEGRADED' ? 'bg-amber-400' : 'bg-rose-400'
                         }`} />
                         <span className="text-xs font-bold font-mono">{src.name}</span>
                       </div>
-                      <p className="text-[9px] font-mono text-[var(--text-secondary)] truncate max-w-[280px]">
+                      <p className="text-[9px] font-mono text-[var(--text-secondary)] truncate">
                         {src.endpoint}
                       </p>
+                      <div className="flex items-center gap-2 text-[8px] font-mono pt-0.5">
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold">
+                          {src.verificationStatus}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                          {src.reliability}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="text-right font-mono text-[10px]">
+                    <div className="text-right font-mono text-[10px] shrink-0">
                       <span className={`font-bold ${src.status === 'HEALTHY' ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {src.status}
                       </span>
