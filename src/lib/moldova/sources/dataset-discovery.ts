@@ -75,10 +75,11 @@ function isEventDataset(text: string): boolean {
  * Discover and fetch official datasets from dataset.gov.md
  */
 export async function discoverMoldovaDatasets(limit = 100): Promise<{ count: number; datasets: MoldovaDataset[] }> {
-  const cacheKey = `moldova:datasets:discovery:${limit}`;
-  const url = `https://dataset.gov.md/api/3/action/package_search?rows=${limit}&sort=metadata_modified+desc`;
+  const cacheKey = 'moldova:datasets:discovery:master';
+  const rowsToFetch = Math.max(limit, 100);
+  const url = `https://dataset.gov.md/api/3/action/package_search?rows=${rowsToFetch}&sort=metadata_modified+desc`;
 
-  return fetchWithMoldovaCache<{ count: number; datasets: MoldovaDataset[] }>(
+  const cachedResult = await fetchWithMoldovaCache<{ count: number; datasets: MoldovaDataset[] }>(
     cacheKey,
     async () => {
       try {
@@ -142,4 +143,9 @@ export async function discoverMoldovaDatasets(limit = 100): Promise<{ count: num
     30 * 60 * 1000, // 30 min cache TTL
     { count: 0, datasets: [] },
   );
+
+  return {
+    count: cachedResult.count,
+    datasets: cachedResult.datasets.slice(0, limit),
+  };
 }
