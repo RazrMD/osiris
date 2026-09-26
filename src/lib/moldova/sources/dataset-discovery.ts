@@ -74,16 +74,19 @@ function isEventDataset(text: string): boolean {
 /**
  * Discover and fetch official datasets from dataset.gov.md
  */
-export async function discoverMoldovaDatasets(limit = 100): Promise<{ count: number; datasets: MoldovaDataset[] }> {
-  const cacheKey = 'moldova:datasets:discovery:master';
-  const rowsToFetch = Math.max(limit, 100);
+export async function discoverMoldovaDatasets(limit = 40): Promise<{ count: number; datasets: MoldovaDataset[] }> {
+  const cacheKey = 'moldova:datasets:discovery:master:v2';
+  const rowsToFetch = Math.min(Math.max(limit, 40), 50);
   const url = `https://dataset.gov.md/api/3/action/package_search?rows=${rowsToFetch}&sort=metadata_modified+desc`;
 
   const cachedResult = await fetchWithMoldovaCache<{ count: number; datasets: MoldovaDataset[] }>(
     cacheKey,
     async () => {
       try {
-        const data = await safeFetchJson<CkanPackageSearchResponse>(url, { timeoutMs: 15000 });
+        const data = await safeFetchJson<CkanPackageSearchResponse>(url, {
+          timeoutMs: 20000,
+          maxSizeBytes: 15 * 1024 * 1024, // 15MB allowance for large CKAN responses
+        });
         if (!data.success || !data.result) {
           throw new Error('CKAN package search returned unsuccessful response');
         }
